@@ -1,87 +1,84 @@
-from flask import Flask, render_template_string
-import subprocess
+from flask import Flask, render_template_string, request, jsonify
+import requests
 
 app = Flask(__name__)
+servers = ['143.248.55.122']  # Replace with the IPs of your GPU servers
 
 @app.route('/')
 def index():
-    # Serve an HTML page with enhanced JavaScript and CSS
     return render_template_string('''
     <!DOCTYPE html>
     <html>
     <head>
-        <title>GPU Status</title>
+        <title>Central GPU Monitoring</title>
         <style>
-            body {
-                background-color: black;
-                color: white;
-                font-family: monospace;
+            body { background-color: black; color: white; font-family: monospace; }
+            select {
+                padding: 10px;
+                border: 2px solid #fff;
+                background-color: #555;
+                color: #fff;
+                margin-bottom: 20px;
+                font-size: 100%;
             }
-            .highlight {
-                background-color: white;
-                color: black;
+            .highlight { 
+                background-color: white; 
+                color: black; 
+                font-weight: bold; 
+            }
+            #gpu-status { 
+                white-space: pre-wrap; 
+                word-wrap: break-word; 
             }
         </style>
+    </head>
+    <body>
+        <h1>GPU Status</h1>
+        <select id="server-select" onchange="fetchGPUStatus()">
+            {% for server in servers %}
+            <option value="{{ server }}">{{ server }}</option>
+            {% endfor %}
+        </select>
+        <div id="gpu-status">Select a server to display GPU info</div>
+
         <script>
-            let previousData = "";
+            let previousData = {};
 
             function fetchGPUStatus() {
-                fetch("/gpu-status")
-                .then(response => response.text())
+                var server = document.getElementById('server-select').value;
+                fetch('/get-gpu-status?server=' + server)
+                .then(response => response.json())
                 .then(data => {
-                    const gpuStatusElement = document.getElementById("gpu-status");
-                    highlightChanges(gpuStatusElement, data);
-                    previousData = data;
+                    const gpuStatusElement = document.getElementById('gpu-status');
+                    if (!previousData[server] || previousData[server] !== data.content) {
+                        gpuStatusElement.innerHTML = highlightChanges(data.content, previousData[server] || "");
+                        previousData[server] = data.content;
+                    }
                 });
             }
 
-            function highlightChanges(element, newData) {
-                if (newData !== previousData) {
-                    element.innerHTML = newData.replace(/./g, (char, index) => {
-                        return (char !== previousData[index] ? '<span class="highlight">' + char + '</span>' : char);
-                    });
-                }
+            function highlightChanges(newData, oldData) {
+                return newData.split('').map((char, index) => {
+                    return (char !== oldData.charAt(index) ? '<span class="highlight">' + char + '</span>' : char);
+                }).join('');
             }
 
             setInterval(fetchGPUStatus, 1000); // Refresh every 1000 milliseconds (1 second)
         </script>
-    </head>
-    <body onload="fetchGPUStatus()">
-        <h1>GPU Status</h1>
-        <pre id="gpu-status">Loading...</pre>
     </body>
     </html>
-    ''')
+    ''', servers=servers)
 
-@app.route('/gpu-status')
-def gpu_status():
+@app.route('/get-gpu-status')
+def get_gpu_status():
+    server = request.args.get('server')
+    if not server:
+        return jsonify({'content': "No server selected"})
     try:
-        process = subprocess.Popen(['nvidia-smi'], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        output, error = process.communicate()
-
-        if process.returncode != 0:
-            return f"Error: {error.decode()}"
-
-        return f"{output.decode()}"
-
-    except Exception as e:
-        return f"An error occurred: {e}"
-
-@app.route('/gpu-processes')
-def gpu_processes():
-    try:
-        process = subprocess.Popen(['nvidia-smi', '--query-compute-apps=pid,name,gpu_memory_used', '--format=csv'],
-                                   stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        output, error = process.communicate()
-
-        if process.returncode != 0:
-            return f"Error: {error.decode()}"
-
-        return f"<pre>{output.decode()}</pre>"
-
-    except Exception as e:
-        return f"An error occurred: {e}"
+        response = requests.get(f'http://{server}:15001/gpu-status')
+        return jsonify({'content': response.text})
+    except requests.RequestException as e:
+        return jsonify({'content': f"Error connecting to server {server}: {e}"})
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=15000)
-
