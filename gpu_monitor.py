@@ -2,7 +2,7 @@ from flask import Flask, render_template_string, request, jsonify
 import requests
 
 app = Flask(__name__)
-servers = ['143.248.55.122']  # Replace with the IPs of your GPU servers
+servers = ['143.248.55.122', '143.248.53.147', '143.248.57.147', '143.248.38.64']  # Replace with the IPs of your GPU servers
 
 @app.route('/')
 def index():
@@ -43,16 +43,21 @@ def index():
 
         <script>
             let previousData = {};
+            let lastRequestedServer = '';
 
             function fetchGPUStatus() {
                 var server = document.getElementById('server-select').value;
+                lastRequestedServer = server;  // Update the last requested server
                 fetch('/get-gpu-status?server=' + server)
                 .then(response => response.json())
                 .then(data => {
-                    const gpuStatusElement = document.getElementById('gpu-status');
-                    if (!previousData[server] || previousData[server] !== data.content) {
-                        gpuStatusElement.innerHTML = highlightChanges(data.content, previousData[server] || "");
-                        previousData[server] = data.content;
+                    // Check if the response is for the last requested server
+                    if (server === lastRequestedServer) {
+                        const gpuStatusElement = document.getElementById('gpu-status');
+                        if (!previousData[server] || previousData[server] !== data.content) {
+                            gpuStatusElement.innerHTML = highlightChanges(data.content, previousData[server] || "");
+                            previousData[server] = data.content;
+                        }
                     }
                 });
             }
