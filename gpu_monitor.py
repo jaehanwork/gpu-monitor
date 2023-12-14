@@ -44,6 +44,27 @@ def index():
         <script>
             let previousData = {};
             let lastRequestedServer = '';
+            let selectedServerIndex = 0;
+            let servers = ['143.248.55.122', '143.248.53.147', '143.248.57.147', '143.248.38.64'];
+
+            document.addEventListener('DOMContentLoaded', function() {
+                updateServerSelection();
+            });
+
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'ArrowUp') {
+                    selectedServerIndex = Math.max(selectedServerIndex - 1, 0);
+                } else if (event.key === 'ArrowDown') {
+                    selectedServerIndex = Math.min(selectedServerIndex + 1, servers.length - 1);
+                }
+                updateServerSelection();
+            });
+
+            function updateServerSelection() {
+                const serverSelect = document.getElementById('server-select');
+                serverSelect.selectedIndex = selectedServerIndex;
+                fetchGPUStatus();
+            }
 
             function fetchGPUStatus() {
                 var server = document.getElementById('server-select').value;
@@ -51,7 +72,6 @@ def index():
                 fetch('/get-gpu-status?server=' + server)
                 .then(response => response.json())
                 .then(data => {
-                    // Check if the response is for the last requested server
                     if (server === lastRequestedServer) {
                         const gpuStatusElement = document.getElementById('gpu-status');
                         if (!previousData[server] || previousData[server] !== data.content) {
@@ -68,7 +88,7 @@ def index():
                 }).join('');
             }
 
-            setInterval(fetchGPUStatus, 1000); // Refresh every 1000 milliseconds (1 second)
+            setInterval(fetchGPUStatus, 1000); // Refresh every 1000 milliseconds
         </script>
     </body>
     </html>
